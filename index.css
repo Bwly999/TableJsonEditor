@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Menlo', monospace;
+  
+  /* Custom color extension */
+  --color-zinc-850: #1f2023;
+}
+
+/* 
+  Tailwind v4 uses a variant for dark mode. 
+  By default it uses media query. 
+  To support the 'class' strategy (toggling .dark on html), we define a custom variant.
+*/
+@variant dark (&:where(.dark, .dark *));
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 5px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* Dark mode scrollbar styles */
+@variant dark {
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+  }
+}
+
+/* Prevent flash of unstyled theme */
+html.dark body {
+  background-color: #09090b;
+  color: #f4f4f5;
+}

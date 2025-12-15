@@ -1,0 +1,740 @@
+import * as React from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Upload, Download, RotateCcw, Layers, Pencil, FileJson, SquareCheck, Square, ChevronRight, TableProperties, Sparkles, Filter, FolderOpen, Columns, Moon, Sun, Check, Command, Grid2X2, Undo, Redo, RotateCw, Type, HelpCircle } from 'lucide-react';
+import { flattenJSON, unflattenJSON, smartParseValue } from './utils/jsonHelper';
+import { FlatRow, ColumnMeta, FilterState, Primitive } from './types';
+import FilterDropdown from './components/FilterDropdown';
+import BulkEditModal from './components/BulkEditModal';
+import JsonDiff from './components/JsonDiff';
+import EditableCell from './components/EditableCell';
+import ColumnVisibilityDropdown from './components/ColumnVisibilityDropdown';
+import ExportModal from './components/ExportModal';
+import HelpModal from './components/HelpModal';
+
+// Virtual Scroll Constants
+const ROW_HEIGHT = 40;
+const OVERSCAN = 5;
+const DEFAULT_COL_WIDTH = 180;
+const STORAGE_KEY_HIDDEN_COLS = 'json-grid-hidden-columns';
+const STORAGE_KEY_THEME = 'json-grid-theme';
+
+function App() {
+  // -- State: Data --
+  const [originalJson, setOriginalJson] = useState<any>(null);
+  const [fileName, setFileName] = useState<string>('');
+  
+  // -- State: History Management --
+  const [history, setHistory] = useState<FlatRow[][]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [flatRows, setFlatRows] = useState<FlatRow[]>([]);
+  
+  const [columns, setColumns] = useState<ColumnMeta[]>([]);
+  
+  // -- State: UI & Filters --
+  const [activeFilters, setActiveFilters] = useState<FilterState>({});
+  const [viewMode, setViewMode] = useState<'edit' | 'diff'>('edit');
+  const [bulkEditCol, setBulkEditCol] = useState<string | null>(null);
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+  const [activeMenuColumn, setActiveMenuColumn] = useState<string | null>(null);
+  const [isTypeSelectorEnabled, setIsTypeSelectorEnabled] = useState(true);
+  
+  // -- State: Modals --
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+
+  // -- State: Theme --
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEY_THEME);
+      const hasDarkClass = document.documentElement.classList.contains('dark');
+      if (hasDarkClass) return true;
+      return saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
+    return false;
+  });
+
+  // -- Effect: Apply Theme --
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (isDarkMode) {
+      root.classList.add('dark');
+      localStorage.setItem(STORAGE_KEY_THEME, 'dark');
+    } else {
+      root.classList.remove('dark');
+      localStorage.setItem(STORAGE_KEY_THEME, 'light');
+    }
+  }, [isDarkMode]);
+
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
+  // -- State: Column Visibility --
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY_HIDDEN_COLS);
+        return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch (e) {
+        return new Set();
+    }
+  });
+
+  useEffect(() => {
+    try {
+        localStorage.setItem(STORAGE_KEY_HIDDEN_COLS, JSON.stringify(Array.from(hiddenColumns)));
+    } catch (e) {
+        console.error("Failed to save column settings", e);
+    }
+  }, [hiddenColumns]);
+
+  // -- State: Column Widths --
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
+
+  // -- Refs --
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // -- Virtual Scroll --
+  const [scrollTop, setScrollTop] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(800);
+
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerHeight(entry.contentRect.height);
+      }
+    });
+    observer.observe(scrollContainerRef.current);
+    return () => observer.disconnect();
+  }, [viewMode]);
+
+  // -- Undo/Redo Logic --
+  const pushToHistory = useCallback((newRows: FlatRow[]) => {
+    setHistory(prev => {
+        const newHistory = prev.slice(0, historyIndex + 1);
+        newHistory.push(newRows);
+        return newHistory;
+    });
+    setHistoryIndex(prev => prev + 1);
+    setFlatRows(newRows);
+  }, [historyIndex]);
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex > 0) {
+        const newIndex = historyIndex - 1;
+        setHistoryIndex(newIndex);
+        setFlatRows(history[newIndex]);
+    }
+  }, [history, historyIndex]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+        const newIndex = historyIndex + 1;
+        setHistoryIndex(newIndex);
+        setFlatRows(history[newIndex]);
+    }
+  }, [history, historyIndex]);
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+            e.preventDefault();
+            if (e.shiftKey) {
+                handleRedo();
+            } else {
+                handleUndo();
+            }
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
+            e.preventDefault();
+            handleRedo();
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
+
+  // -- Resize Logic --
+  useEffect(() => {
+    const handleMouseUp = () => {
+      resizingRef.current = null;
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (resizingRef.current) {
+        const { key, startX, startWidth } = resizingRef.current;
+        const diff = e.clientX - startX;
+        const newWidth = Math.max(80, startWidth + diff); 
+        setColumnWidths((prev) => ({ ...prev, [key]: newWidth }));
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  const handleResizeStart = (e: React.MouseEvent, key: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const currentWidth = columnWidths[key] || DEFAULT_COL_WIDTH;
+    resizingRef.current = { key, startX: e.clientX, startWidth: currentWidth };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  // -- Data Logic: Filter & Sort --
+  const updateFilterForNewValue = useCallback((key: string, newValue: Primitive) => {
+    setActiveFilters(prev => {
+        const currentFilter = prev[key];
+        if (currentFilter && !currentFilter.has(newValue)) {
+            const newSet = new Set(currentFilter);
+            newSet.add(newValue);
+            return { ...prev, [key]: newSet };
+        }
+        return prev;
+    });
+  }, []);
+
+  // -- Data Logic: File Upload --
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    setOriginalJson(null);
+    setFlatRows([]);
+    setColumns([]);
+    setActiveFilters({});
+    setColumnWidths({});
+    setActiveMenuColumn(null);
+    setHistory([]);
+    setHistoryIndex(-1);
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        setOriginalJson(json);
+        setTimeout(() => {
+            const { rows, columns: cols } = flattenJSON(json);
+            
+            setHistory([rows]);
+            setHistoryIndex(0);
+            setFlatRows(rows);
+            setColumns(cols);
+            setSelectedRowIds(new Set());
+            
+            const initialFilters: FilterState = {};
+            cols.forEach(col => {
+               const distinctValues = new Set(rows.map(r => r[col.key]));
+               initialFilters[col.key] = distinctValues;
+            });
+            setActiveFilters(initialFilters);
+            setViewMode('edit');
+        }, 0);
+      } catch (err) {
+        alert("Invalid JSON file");
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  };
+
+  const openFileSelector = () => {
+    fileInputRef.current?.click();
+  };
+
+  const visibleColumns = useMemo(() => {
+    return columns.filter(col => !hiddenColumns.has(col.key));
+  }, [columns, hiddenColumns]);
+
+  const filteredRows = useMemo(() => {
+    return flatRows.filter(row => {
+      for (const col of columns) {
+        const allowed = activeFilters[col.key];
+        if (allowed && !allowed.has(row[col.key])) {
+            return false;
+        }
+      }
+      return true;
+    });
+  }, [flatRows, activeFilters, columns]);
+
+  const getOptionsForColumn = useCallback((columnKey: string) => {
+      const rowsForThisColumn = flatRows.filter(row => {
+          for (const col of columns) {
+              if (col.key === columnKey) continue; 
+              const allowed = activeFilters[col.key];
+              if (allowed && !allowed.has(row[col.key])) {
+                  return false;
+              }
+          }
+          return true;
+      });
+      
+      return Array.from(new Set(rowsForThisColumn.map(r => r[columnKey]))).sort();
+  }, [flatRows, activeFilters, columns]);
+
+  // -- Virtualization Calculation --
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+      setScrollTop(e.currentTarget.scrollTop);
+  }, []);
+
+  const visibleRange = useMemo(() => {
+      const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+      const endIndex = Math.min(filteredRows.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + OVERSCAN);
+      return { startIndex, endIndex };
+  }, [scrollTop, containerHeight, filteredRows.length]);
+
+  const visibleRows = useMemo(() => {
+      return filteredRows.slice(visibleRange.startIndex, visibleRange.endIndex);
+  }, [filteredRows, visibleRange]);
+
+  const paddingTop = visibleRange.startIndex * ROW_HEIGHT;
+  const paddingBottom = (filteredRows.length - visibleRange.endIndex) * ROW_HEIGHT;
+
+  // -- Selection --
+  const isAllSelected = useMemo(() => {
+    return filteredRows.length > 0 && filteredRows.every(r => selectedRowIds.has(r._id));
+  }, [filteredRows, selectedRowIds]);
+
+  const toggleSelectAll = useCallback(() => {
+    if (isAllSelected) {
+        setSelectedRowIds(new Set());
+    } else {
+        const newSet = new Set(selectedRowIds);
+        filteredRows.forEach(r => newSet.add(r._id));
+        setSelectedRowIds(newSet);
+    }
+  }, [isAllSelected, filteredRows, selectedRowIds]);
+
+  const toggleRow = useCallback((id: string) => {
+      setSelectedRowIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(id)) newSet.delete(id);
+          else newSet.add(id);
+          return newSet;
+      });
+  }, []);
+
+  // -- Edit Handlers --
+  const handleCellChange = useCallback((id: string, key: string, newValue: Primitive) => {
+    const targetRow = flatRows.find(r => r._id === id);
+    if (!targetRow) return;
+
+    updateFilterForNewValue(key, newValue);
+    const targetPathId = targetRow._propPathIds[key];
+
+    const newRows = flatRows.map(row => {
+      if (row._propPathIds && row._propPathIds[key] === targetPathId) {
+          if (row[key] === newValue) return row;
+          return { ...row, [key]: newValue };
+      }
+      return row;
+    });
+    
+    pushToHistory(newRows);
+  }, [flatRows, updateFilterForNewValue, pushToHistory]);
+
+  const handleFilterChange = useCallback((key: string, selection: Set<Primitive>) => {
+    setActiveFilters(prev => ({ ...prev, [key]: selection }));
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+  }, []);
+
+  const handleBulkEdit = (newValue: Primitive) => {
+    if (!bulkEditCol) return;
+    
+    updateFilterForNewValue(bulkEditCol, newValue);
+
+    const targetPathIds = new Set<string>();
+    const rowsToIterate = selectedRowIds.size > 0 
+        ? flatRows.filter(r => selectedRowIds.has(r._id))
+        : filteredRows;
+
+    rowsToIterate.forEach(r => {
+        targetPathIds.add(r._propPathIds[bulkEditCol]);
+    });
+
+    const newRows = flatRows.map(row => {
+      if (row._propPathIds && targetPathIds.has(row._propPathIds[bulkEditCol])) {
+         return { ...row, [bulkEditCol]: newValue };
+      }
+      return row;
+    });
+
+    pushToHistory(newRows);
+  };
+
+  // -- Column Visibility Handlers --
+  const handleToggleColumn = (key: string) => {
+      setHiddenColumns(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(key)) newSet.delete(key);
+          else newSet.add(key);
+          return newSet;
+      });
+  };
+
+  const handleShowAllColumns = () => setHiddenColumns(new Set());
+  const handleHideAllColumns = () => setHiddenColumns(new Set(columns.map(c => c.key)));
+
+  // -- Export/Diff Helpers --
+  const diffJson = useMemo(() => {
+      if (viewMode === 'diff' && originalJson) {
+          return unflattenJSON(originalJson, flatRows);
+      }
+      return null;
+  }, [viewMode, originalJson, flatRows]);
+
+  return (
+    <div className={`h-screen flex flex-col font-sans text-zinc-900 dark:text-zinc-100 bg-zinc-50 dark:bg-zinc-950 transition-colors duration-300`}>
+      {/* Hidden File Input */}
+      <input 
+        type="file" 
+        accept=".json" 
+        className="hidden" 
+        ref={fileInputRef}
+        onChange={handleFileUpload} 
+      />
+
+      {/* App Header */}
+      <header className="h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl flex items-center justify-between px-6 shadow-sm z-30 relative shrink-0">
+        <div className="flex items-center gap-4 animate-in slide-in-from-left-4 fade-in duration-500">
+          <div className="w-9 h-9 bg-zinc-900 dark:bg-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-zinc-900/10 dark:shadow-indigo-500/20 ring-1 ring-white/20">
+             <Command className="text-white" size={18} />
+          </div>
+          <div className="flex flex-col">
+            <h1 className="text-sm font-bold tracking-tight text-zinc-900 dark:text-white leading-none mb-1">
+              JSON Spotlight
+            </h1>
+             <div className="flex items-center gap-2">
+               <span className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider bg-zinc-100 dark:bg-zinc-800 px-1.5 py-px rounded">Beta</span>
+             </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 animate-in slide-in-from-right-4 fade-in duration-500">
+          {!originalJson ? (
+             <button 
+                onClick={openFileSelector} 
+                className="group flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-lg hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-lg shadow-zinc-900/10 text-xs font-semibold"
+             >
+                <Upload size={14} className="group-hover:-translate-y-0.5 transition-transform" />
+                <span>Import JSON</span>
+             </button>
+          ) : (
+            <>
+               <div className="flex items-center bg-zinc-100/80 dark:bg-zinc-800 p-1 rounded-lg border border-zinc-200 dark:border-zinc-700/50">
+                  <button 
+                    onClick={() => setViewMode('edit')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-2 transition-all ${viewMode === 'edit' ? 'bg-white dark:bg-zinc-600 text-zinc-900 dark:text-white shadow-sm ring-1 ring-black/5' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'}`}
+                  >
+                    <TableProperties size={14} /> Data
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('diff')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-2 transition-all ${viewMode === 'diff' ? 'bg-white dark:bg-zinc-600 text-zinc-900 dark:text-white shadow-sm ring-1 ring-black/5' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'}`}
+                  >
+                    <RotateCcw size={14} /> Changes
+                  </button>
+               </div>
+
+               <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-800 mx-1"></div>
+
+               <div className="flex items-center gap-1">
+                   <button 
+                        onClick={handleUndo} 
+                        disabled={historyIndex <= 0}
+                        className={`p-2 rounded-lg transition-colors ${historyIndex > 0 ? 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-indigo-600 dark:hover:text-indigo-400' : 'text-zinc-300 dark:text-zinc-700 cursor-not-allowed'}`}
+                        title="Undo (Ctrl+Z)"
+                    >
+                        <Undo size={16} />
+                   </button>
+                   <button 
+                        onClick={handleRedo}
+                        disabled={historyIndex >= history.length - 1}
+                        className={`p-2 rounded-lg transition-colors ${historyIndex < history.length - 1 ? 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-indigo-600 dark:hover:text-indigo-400' : 'text-zinc-300 dark:text-zinc-700 cursor-not-allowed'}`}
+                        title="Redo (Ctrl+Shift+Z)"
+                    >
+                        <Redo size={16} />
+                   </button>
+               </div>
+
+               <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-800 mx-1"></div>
+
+               {viewMode === 'edit' && (
+                   <>
+                       <ColumnVisibilityDropdown 
+                            columns={columns}
+                            hiddenColumns={hiddenColumns}
+                            onToggleColumn={handleToggleColumn}
+                            onShowAll={handleShowAllColumns}
+                            onHideAll={handleHideAllColumns}
+                       />
+                       
+                       <button
+                         onClick={() => setIsTypeSelectorEnabled(!isTypeSelectorEnabled)}
+                         className={`p-2 rounded-lg transition-all border ${isTypeSelectorEnabled ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white border-zinc-200 dark:border-zinc-600' : 'border-transparent text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+                         title={isTypeSelectorEnabled ? "Type Selector: On" : "Type Selector: Off"}
+                       >
+                           <Type size={16} strokeWidth={2.5} />
+                       </button>
+                   </>
+               )}
+
+               <button 
+                 onClick={openFileSelector}
+                 className="p-2 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+                 title="Import new file"
+               >
+                  <FolderOpen size={18} />
+               </button>
+
+               <button 
+                  onClick={() => setIsExportModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-indigo-600 text-white rounded-lg hover:opacity-90 shadow-lg shadow-zinc-900/20 dark:shadow-indigo-500/30 transition-all active:scale-95 text-xs font-bold border border-transparent"
+                >
+                 <Download size={14} /> 
+                 <span>Export</span>
+               </button>
+            </>
+          )}
+          
+          <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-800 mx-1"></div>
+          
+          <button 
+             onClick={() => setIsHelpModalOpen(true)}
+             className="p-2 rounded-lg text-zinc-400 hover:text-indigo-600 dark:text-zinc-500 dark:hover:text-indigo-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+             title="Help & Guide"
+          >
+             <HelpCircle size={18} />
+          </button>
+
+          <button 
+            onClick={toggleTheme}
+            className="p-2 rounded-lg text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
+            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-hidden relative flex flex-col bg-zinc-50/50 dark:bg-zinc-950">
+        {!originalJson ? (
+          <div className="flex flex-col items-center justify-center h-full animate-in fade-in zoom-in duration-500">
+             <div className="relative group">
+                <div className="absolute -inset-4 bg-gradient-to-r from-indigo-500/30 to-purple-500/30 rounded-full blur-xl opacity-50 group-hover:opacity-75 transition duration-1000"></div>
+                <div className="relative w-24 h-24 bg-white dark:bg-zinc-900 rounded-2xl flex items-center justify-center shadow-2xl border border-zinc-100 dark:border-zinc-800">
+                   <Grid2X2 size={40} className="text-zinc-900 dark:text-white" strokeWidth={1.5} />
+                </div>
+             </div>
+             <h2 className="mt-8 text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">No Dataset Loaded</h2>
+             <p className="mt-3 text-zinc-500 dark:text-zinc-400 max-w-sm text-center text-sm leading-relaxed">
+               Import a JSON file to start editing. <br/> We support complex nested structures.
+             </p>
+             <button onClick={openFileSelector} className="mt-8 px-6 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-semibold rounded-lg hover:translate-y-[-1px] transition-all shadow-xl shadow-zinc-900/10">
+                Select JSON File
+             </button>
+          </div>
+        ) : (
+          <>
+            {viewMode === 'edit' && (
+               <div 
+                  className="h-full overflow-auto custom-scrollbar relative bg-white dark:bg-zinc-950 animate-in fade-in duration-500" 
+                  ref={scrollContainerRef}
+                  onScroll={handleScroll}
+                >
+                 <table className="border-collapse table-fixed text-sm min-w-full" style={{ width: 'max-content' }}>
+                   <thead className="sticky top-0 z-20 shadow-sm shadow-zinc-900/5">
+                     <tr>
+                        {/* Select All Header */}
+                        <th className="border-b border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 w-10 text-center p-0 sticky top-0 z-30 h-10">
+                            <button onClick={toggleSelectAll} className="text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center justify-center w-full h-full transition-colors">
+                                {isAllSelected ? <SquareCheck size={16} className="text-indigo-600 dark:text-indigo-400"/> : <Square size={16} />}
+                            </button>
+                        </th>
+                        {/* Row Index Header */}
+                        <th className="border-b border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 w-12 text-center text-[10px] text-zinc-500 dark:text-zinc-500 font-semibold sticky top-0 z-30 h-10 uppercase tracking-wider">
+                           #
+                        </th>
+                        {/* Data Columns */}
+                        {visibleColumns.map((col) => {
+                             const colWidth = columnWidths[col.key] || DEFAULT_COL_WIDTH;
+                             const allPossibleOptions = Array.from(new Set(flatRows.map(r => r[col.key]))).sort();
+                             const availableOptions = getOptionsForColumn(col.key);
+                             const activeSet = activeFilters[col.key] || new Set(allPossibleOptions);
+                             const isFiltered = activeSet.size !== allPossibleOptions.length;
+                             
+                             return (
+                               <th 
+                                  key={col.key} 
+                                  className={`border-b border-r border-zinc-200 dark:border-zinc-800 text-left sticky top-0 z-30 h-10 transition-colors group relative ${
+                                      col.isParent 
+                                        ? 'bg-amber-50/80 dark:bg-amber-950/30 border-b-amber-200/50 dark:border-b-amber-900/30' 
+                                        : 'bg-zinc-50 dark:bg-zinc-900'
+                                  }`} 
+                                  style={{ width: colWidth }}
+                                >
+                                 <div className="flex items-center justify-between px-3 w-full h-full">
+                                   <div className="flex flex-col overflow-hidden min-w-0">
+                                       <div className="flex items-center gap-1.5">
+                                            <span className={`truncate font-semibold text-xs tracking-tight ${isFiltered ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-700 dark:text-zinc-300'}`} title={col.key}>
+                                                {col.key}
+                                            </span>
+                                            {col.isParent && (
+                                                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 dark:bg-amber-600/80" title="Shared Parent Property"></div>
+                                            )}
+                                       </div>
+                                   </div>
+                                   <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 dark:bg-zinc-800/80 backdrop-blur rounded ml-2 shadow-sm border border-zinc-100 dark:border-zinc-700 ${activeMenuColumn === col.key ? 'opacity-100' : ''}`}>
+                                         <button 
+                                            title="Bulk Edit"
+                                            onClick={() => setBulkEditCol(col.key)}
+                                            className="text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                                         >
+                                            <Pencil size={12} />
+                                         </button>
+                                      <FilterDropdown 
+                                        columnKey={col.key}
+                                        options={availableOptions}
+                                        allPossibleOptions={allPossibleOptions}
+                                        activeSelection={activeSet}
+                                        onApply={handleFilterChange}
+                                        activeMenuColumn={activeMenuColumn}
+                                        onOpenChange={(isOpen) => setActiveMenuColumn(isOpen ? col.key : null)}
+                                      />
+                                   </div>
+                                 </div>
+                                 {/* Resizer */}
+                                 <div 
+                                    className="absolute -right-2 top-0 h-full w-4 cursor-col-resize z-50 flex justify-center items-center group/resizer"
+                                    onMouseDown={(e) => handleResizeStart(e, col.key)}
+                                 >
+                                    <div className="w-[2px] h-4 bg-indigo-500 dark:bg-indigo-400 opacity-0 group-hover/resizer:opacity-100 transition-opacity rounded-full"></div>
+                                 </div>
+                               </th>
+                             );
+                        })}
+                     </tr>
+                   </thead>
+                   <tbody className="bg-white dark:bg-zinc-950 divide-y divide-zinc-100 dark:divide-zinc-800/50">
+                     {filteredRows.length === 0 ? (
+                        <tr><td colSpan={visibleColumns.length + 2} className="p-20 text-center">
+                            <div className="flex flex-col items-center gap-4 text-zinc-400 dark:text-zinc-600 animate-in zoom-in-95 duration-300">
+                                <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-full"><Filter size={24}/></div>
+                                <span className="font-medium">No matching records found</span>
+                                <button onClick={() => setActiveFilters({})} className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium">Clear all filters</button>
+                            </div>
+                        </td></tr>
+                     ) : (
+                        <>
+                          {paddingTop > 0 && <tr style={{ height: paddingTop }}><td colSpan={visibleColumns.length + 2} /></tr>}
+                          
+                          {visibleRows.map((row, idx) => {
+                             const actualIdx = visibleRange.startIndex + idx;
+                             const isSelected = selectedRowIds.has(row._id);
+                             return (
+                               <tr key={row._id} className={`group h-[40px] transition-colors duration-200 ${isSelected ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-zinc-50 dark:hover:bg-zinc-900/40'}`}>
+                                 <td className={`border-r border-zinc-200 dark:border-zinc-800 text-center p-0 ${isSelected ? 'border-indigo-100 dark:border-indigo-800' : ''}`}>
+                                    <button onClick={() => toggleRow(row._id)} className="text-zinc-300 dark:text-zinc-700 hover:text-indigo-600 dark:hover:text-indigo-400 w-full h-full flex items-center justify-center transition-colors">
+                                        {isSelected ? <SquareCheck size={16} className="text-indigo-600 dark:text-indigo-400"/> : <Square size={16} />}
+                                    </button>
+                                 </td>
+                                 <td className={`border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-center text-[10px] text-zinc-400 dark:text-zinc-600 p-0 select-none flex items-center justify-center h-[40px] font-sans tabular-nums ${isSelected ? 'border-indigo-100 dark:border-indigo-800' : ''}`}>
+                                    {actualIdx + 1}
+                                 </td>
+                                 {visibleColumns.map((col) => (
+                                   <td key={col.key} className={`border-r border-zinc-200 dark:border-zinc-800 text-xs p-0 h-[40px] relative ${isSelected ? 'border-indigo-100 dark:border-indigo-800' : ''} ${col.isParent ? 'bg-amber-50/20 dark:bg-amber-900/5' : ''}`}>
+                                     <EditableCell 
+                                        initialValue={row[col.key]}
+                                        onChange={(newVal) => handleCellChange(row._id, col.key, newVal)}
+                                        showTypeSelector={isTypeSelectorEnabled}
+                                     />
+                                   </td>
+                                 ))}
+                               </tr>
+                             );
+                           })}
+
+                           {paddingBottom > 0 && <tr style={{ height: paddingBottom }}><td colSpan={visibleColumns.length + 2} /></tr>}
+                        </>
+                     )}
+                   </tbody>
+                 </table>
+               </div>
+            )}
+
+            {viewMode === 'diff' && (
+                <div className="h-full p-6 bg-zinc-50 dark:bg-zinc-950 flex flex-col animate-in fade-in duration-300">
+                   <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Review Changes</h3>
+                      <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-3 bg-white dark:bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                        <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500"></span> Original</div>
+                        <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Modified</div>
+                      </div>
+                   </div>
+                   {diffJson ? <JsonDiff original={originalJson} modified={diffJson} isDarkMode={isDarkMode} /> : <div>Loading...</div>}
+                </div>
+            )}
+          </>
+        )}
+      </main>
+
+      {/* Status Bar */}
+      {originalJson && (
+        <footer className="bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 px-6 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 z-20 shrink-0 h-[40px] animate-in slide-in-from-bottom-2 fade-in duration-500">
+           <div className="flex items-center gap-6 font-medium">
+              <div className="flex items-center gap-2">
+                  <FileJson size={12} className="text-zinc-400"/>
+                  <span className="max-w-[200px] truncate text-zinc-700 dark:text-zinc-300" title={fileName}>{fileName || 'Untitled.json'}</span>
+              </div>
+              <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-700"></div>
+              <span>Total Rows: <strong className="text-zinc-900 dark:text-white">{filteredRows.length}</strong></span>
+              <div className={`flex items-center gap-2 px-2 py-0.5 rounded transition-all ${selectedRowIds.size > 0 ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300' : ''}`}>
+                  <span>Selected: <strong>{selectedRowIds.size}</strong></span>
+              </div>
+           </div>
+           <div className="flex items-center gap-2 text-zinc-400 dark:text-zinc-600">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span>Auto-saved</span>
+           </div>
+        </footer>
+      )}
+
+      <BulkEditModal 
+        isOpen={!!bulkEditCol}
+        onClose={() => setBulkEditCol(null)}
+        columnName={bulkEditCol || ''}
+        affectedRowCount={selectedRowIds.size > 0 ? selectedRowIds.size : filteredRows.length}
+        onSave={handleBulkEdit}
+      />
+      
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        fileName={fileName}
+        originalJson={originalJson}
+        flatRows={selectedRowIds.size > 0 ? flatRows.filter(r => selectedRowIds.has(r._id)) : filteredRows}
+        columns={columns}
+        hiddenColumns={hiddenColumns}
+      />
+
+      <HelpModal 
+        isOpen={isHelpModalOpen}
+        onClose={() => setIsHelpModalOpen(false)}
+      />
+    </div>
+  );
+}
+
+export default App;

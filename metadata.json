@@ -1,0 +1,5 @@
+{
+  "name": "JSON Grid Editor",
+  "description": "A powerful JSON editor with Excel-like filtering, bulk editing, and diff capabilities for nested structures.",
+  "requestFramePermissions": []
+}
