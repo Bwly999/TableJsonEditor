@@ -27,7 +27,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
   onNotify,
 }) => {
   const [format, setFormat] = useState<'json' | 'excel'>('json');
-  const [mergeCells, setMergeCells] = useState(false);
+  const [mergeCells, setMergeCells] = useState(true);
   const [selectedColumns, setSelectedColumns] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -136,7 +136,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
                      <p className="text-[10px] text-zinc-500">连续垂直的相同值将进行物理合并，保持 Excel 整洁。</p>
                   </div>
                   <button onClick={() => setMergeCells(!mergeCells)} className={`relative w-10 h-5 rounded-full transition-colors ${mergeCells ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
-                    <span className={`inline-block w-3.5 h-3.5 transform transition bg-white rounded-full mt-0.5 ml-0.5 ${mergeCells ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <span className={`absolute top-0.5 left-0.5 w-3.5 h-3.5 transform transition-transform bg-white rounded-full shadow-sm ${mergeCells ? 'translate-x-5' : 'translate-x-0'}`} />
                   </button>
               </div>
 
