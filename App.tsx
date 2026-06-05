@@ -11,6 +11,7 @@ import ColumnVisibilityDropdown from './components/ColumnVisibilityDropdown';
 import ExportModal from './components/ExportModal';
 import HelpModal from './components/HelpModal';
 import PasteModal from './components/PasteModal';
+import DragDropOverlay from './components/DragDropOverlay';
 
 // Virtual Scroll Constants
 const ROW_HEIGHT = 40;
@@ -400,6 +401,7 @@ function App() {
   return (
     <div className={`h-screen flex flex-col font-sans text-zinc-900 dark:text-zinc-100 bg-zinc-50 dark:bg-zinc-950 transition-colors duration-300 overflow-hidden`}>
       <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+      <DragDropOverlay onFileDrop={loadJsonData} onNotify={notify} />
 
       {/* App Header */}
       <header className="h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-[#0c0c0e]/80 backdrop-blur-xl flex items-center justify-between px-6 shadow-sm z-30 relative shrink-0">
@@ -522,6 +524,7 @@ function App() {
                     <Upload size={16} /> 选择文件
                  </button>
              </div>
+             <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">或拖放文件到窗口任意位置</p>
           </div>
         ) : (
           <>
