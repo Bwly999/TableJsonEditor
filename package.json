@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "pnpm dlx vitest run",
     "neu:run": "neu run",
-    "neu:build": "neu build --embed-resources",
+    "neu:build": "neu build --embed-resources && node scripts/set-exe-icon.mjs",
     "gen:icon": "node scripts/generate-icon.mjs"
   },
   "dependencies": {
@@ -28,6 +28,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "png-to-ico": "^3.0.1",
+    "rcedit": "^4.0.1",
     "sharp": "^0.34.5",
     "typescript": "^5.5.3",
     "vite": "^5.3.1"
