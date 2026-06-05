@@ -102,7 +102,7 @@ function App() {
   const [bulkEditCol, setBulkEditCol] = useState<string | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [activeMenuColumn, setActiveMenuColumn] = useState<string | null>(null);
-  const [isTypeSelectorEnabled, setIsTypeSelectorEnabled] = useState(true);
+  const [isTypeSelectorEnabled, setIsTypeSelectorEnabled] = useState(false);
   
   // -- State: Modals & Feedback --
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -269,12 +269,7 @@ function App() {
               setColumns(cols);
               setSelectedRowIds(new Set());
               
-              const initialFilters: FilterState = {};
-              cols.forEach(col => {
-                  const distinctValues = new Set(rows.map(r => r[col.key]));
-                  initialFilters[col.key] = distinctValues;
-              });
-              setActiveFilters(initialFilters);
+              setActiveFilters({});
               setViewMode('edit');
               notify(`成功载入数据集: ${name}`, 'success');
           }, 0);
@@ -353,11 +348,26 @@ function App() {
 
   // -- Filter Handlers --
   const handleFilterChange = useCallback((columnKey: string, selection: Set<Primitive>) => {
-    setActiveFilters(prev => ({
-      ...prev,
-      [columnKey]: selection
-    }));
-  }, []);
+    setActiveFilters(prev => {
+      const allPossible = new Set(flatRows.map(r => r[columnKey]));
+      const next = { ...prev };
+      
+      let isAllSelected = true;
+      for (const val of allPossible) {
+        if (!selection.has(val)) {
+          isAllSelected = false;
+          break;
+        }
+      }
+      
+      if (isAllSelected) {
+        delete next[columnKey];
+      } else {
+        next[columnKey] = selection;
+      }
+      return next;
+    });
+  }, [flatRows]);
 
   // -- Edit Handlers --
   const handleCellChange = useCallback((id: string, key: string, newValue: Primitive) => {
