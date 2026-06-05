@@ -61,19 +61,19 @@ const JsonDiff: React.FC<JsonDiffProps> = ({ original, modified, isDarkMode = fa
       <div className="absolute top-4 right-6 z-10 flex items-center gap-2 bg-white/90 dark:bg-zinc-800/90 backdrop-blur p-1.5 rounded-lg shadow-md border border-zinc-200 dark:border-zinc-700">
          <div className="text-xs font-mono text-zinc-500 dark:text-zinc-400 px-2 flex items-center gap-2 border-r border-zinc-200 dark:border-zinc-700 mr-1">
             <Map size={14} />
-            <strong>{changesCount}</strong> diffs
+            <strong>{changesCount}</strong> 处差异
          </div>
          <button 
             onClick={() => navigateDiff('prev')}
             className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded text-zinc-600 dark:text-zinc-400 hover:text-indigo-600 transition-colors"
-            title="Previous"
+            title="上一个"
          >
             <ChevronUp size={16} />
          </button>
          <button 
             onClick={() => navigateDiff('next')}
             className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded text-zinc-600 dark:text-zinc-400 hover:text-indigo-600 transition-colors"
-            title="Next"
+            title="下一个"
          >
             <ChevronDown size={16} />
          </button>

@@ -101,7 +101,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
     handleOpenChange(false);
   };
 
-  const displayValue = (val: Primitive) => (val === null ? '(Blanks)' : String(val));
+  const displayValue = (val: Primitive) => (val === null ? '(空值)' : String(val));
 
   return (
     <div className="relative inline-block text-left">
@@ -130,7 +130,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                     <Search size={14} className="absolute left-3 top-2.5 text-zinc-400" />
                     <input
                     type="text"
-                    placeholder={`Search... ${isRegex ? '(Regex)' : ''}`}
+                    placeholder={`搜索... ${isRegex ? '(正则)' : ''}`}
                     className={`w-full pl-9 pr-3 py-2 bg-white dark:bg-zinc-800 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-xs transition-all placeholder-zinc-400 text-zinc-900 dark:text-white ${isRegex ? 'border-indigo-300 dark:border-indigo-700 ring-1 ring-indigo-100 dark:ring-indigo-900' : 'border-zinc-200 dark:border-zinc-700'}`}
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
@@ -141,7 +141,7 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                 <button 
                     onClick={(e) => { e.stopPropagation(); setIsRegex(!isRegex); }}
                     className={`p-2 rounded-lg border transition-all ${isRegex ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800' : 'bg-white dark:bg-zinc-800 text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700'}`}
-                    title="Toggle Regex Search"
+                    title="切换正则搜索"
                 >
                     <Regex size={14} />
                 </button>
@@ -156,11 +156,11 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                 <div className={`w-4 h-4 border rounded mr-3 flex items-center justify-center transition-colors ${isAllVisibleSelected ? 'bg-indigo-600 border-indigo-600 dark:bg-indigo-500 dark:border-indigo-500' : 'bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600'}`}>
                     {isAllVisibleSelected && <Check size={12} className="text-white" strokeWidth={3} />}
                 </div>
-                <span className="font-medium text-indigo-900 dark:text-indigo-300 text-xs uppercase tracking-wide">(Select All Visible)</span>
+                <span className="font-medium text-indigo-900 dark:text-indigo-300 text-xs uppercase tracking-wide">(选择所有可见项)</span>
               </div>
               
               {filteredOptions.length === 0 && (
-                  <div className="px-3 py-4 text-center text-xs text-zinc-400 italic">No matches found</div>
+                  <div className="px-3 py-4 text-center text-xs text-zinc-400 italic">未找到匹配项</div>
               )}
 
               {filteredOptions.map((opt, idx) => {
@@ -186,14 +186,14 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
                   onClick={(e) => { e.stopPropagation(); handleClear(); }}
                 >
                   <Trash2 size={12} />
-                  Reset
+                  重置
                 </button>
               
               <button
                 className="px-4 py-1.5 text-xs font-bold bg-zinc-900 dark:bg-indigo-600 text-white rounded-md hover:opacity-90 shadow-md transition-all"
                 onClick={(e) => { e.stopPropagation(); handleApply(); }}
               >
-                Apply Filter
+                应用筛选
               </button>
             </div>
           </div>

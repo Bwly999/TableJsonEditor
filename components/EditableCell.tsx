@@ -179,28 +179,28 @@ const EditableCell: React.FC<EditableCellProps> = ({
             <button
                 onClick={(e) => toggleForceType(e, 'string')}
                 className={`p-1 rounded hover:bg-white dark:hover:bg-zinc-700 transition-colors ${derivedResult.type === 'string' ? 'bg-white dark:bg-zinc-600 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-zinc-400'}`}
-                title="Force String"
+                title="强制字符串"
             >
                 <Type size={12} strokeWidth={2.5} />
             </button>
             <button
                 onClick={(e) => toggleForceType(e, 'number')}
                 className={`p-1 rounded hover:bg-white dark:hover:bg-zinc-700 transition-colors ${derivedResult.type === 'number' ? 'bg-white dark:bg-zinc-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-400'}`}
-                title="Force Number"
+                title="强制数字"
             >
                 <Hash size={12} strokeWidth={2.5} />
             </button>
             <button
                 onClick={(e) => toggleForceType(e, 'boolean')}
                 className={`p-1 rounded hover:bg-white dark:hover:bg-zinc-700 transition-colors ${derivedResult.type === 'boolean' ? 'bg-white dark:bg-zinc-600 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-zinc-400'}`}
-                title="Force Boolean"
+                title="强制布尔值"
             >
                 <Binary size={12} strokeWidth={2.5} />
             </button>
             <button
                 onClick={(e) => toggleForceType(e, 'null')}
                 className={`p-1 rounded hover:bg-white dark:hover:bg-zinc-700 transition-colors ${derivedResult.type === 'null' ? 'bg-white dark:bg-zinc-600 text-rose-500 dark:text-rose-400 shadow-sm' : 'text-zinc-400'}`}
-                title="Force Null"
+                title="强制空值"
             >
                 <Ban size={12} strokeWidth={2.5} />
             </button>

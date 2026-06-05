@@ -1,5 +1,5 @@
 {
-  "name": "JSON Grid Editor",
-  "description": "A powerful JSON editor with Excel-like filtering, bulk editing, and diff capabilities for nested structures.",
+  "name": "JSON 聚光灯编辑器",
+  "description": "功能强大的 JSON 编辑器，具有类似 Excel 的筛选、批量编辑以及针对嵌套结构的差异对比功能。",
   "requestFramePermissions": []
 }

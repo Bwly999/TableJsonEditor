@@ -39,10 +39,10 @@ const ColumnVisibilityDropdown: React.FC<ColumnVisibilityDropdownProps> = ({
             ? 'bg-white dark:bg-zinc-700 text-indigo-600 dark:text-white shadow-sm' 
             : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
         }`}
-        title="Manage Columns"
+        title="管理列"
       >
         <Columns size={14} />
-        <span className="hidden sm:inline">Columns</span>
+        <span className="hidden sm:inline">列</span>
         <span className="bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded-full text-[10px]">
             {visibleCount}/{columns.length}
         </span>
@@ -58,7 +58,7 @@ const ColumnVisibilityDropdown: React.FC<ColumnVisibilityDropdownProps> = ({
                 <Search size={14} className="absolute left-3 top-2.5 text-zinc-400" />
                 <input
                   type="text"
-                  placeholder="Find column..."
+                  placeholder="查找列..."
                   className="w-full pl-9 pr-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-xs transition-all placeholder-zinc-400 text-zinc-900 dark:text-white"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
@@ -70,20 +70,20 @@ const ColumnVisibilityDropdown: React.FC<ColumnVisibilityDropdownProps> = ({
                     onClick={onShowAll}
                     className="flex-1 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center justify-center gap-1"
                  >
-                    <Eye size={12} /> Show All
+                    <Eye size={12} /> 显示全部
                  </button>
                  <button 
                     onClick={onHideAll}
                     className="flex-1 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded hover:bg-zinc-50 dark:hover:bg-zinc-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center justify-center gap-1"
                  >
-                    <EyeOff size={12} /> Hide All
+                    <EyeOff size={12} /> 隐藏全部
                  </button>
               </div>
             </div>
 
             <div className="max-h-[300px] overflow-y-auto p-1 custom-scrollbar">
               {filteredColumns.length === 0 && (
-                  <div className="px-3 py-4 text-center text-xs text-zinc-400 italic">No columns found</div>
+                  <div className="px-3 py-4 text-center text-xs text-zinc-400 italic">未找到列</div>
               )}
 
               {filteredColumns.map((col) => {
@@ -101,7 +101,7 @@ const ColumnVisibilityDropdown: React.FC<ColumnVisibilityDropdownProps> = ({
                         <span className={`truncate font-mono text-xs ${isVisible ? 'text-zinc-700 dark:text-zinc-300 font-medium' : 'text-zinc-400 dark:text-zinc-600'}`}>{col.key}</span>
                     </div>
                     {col.isParent && (
-                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-400 dark:bg-amber-600 shrink-0" title="Parent Property"></div>
+                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-400 dark:bg-amber-600 shrink-0" title="父级属性"></div>
                     )}
                   </div>
                 );
