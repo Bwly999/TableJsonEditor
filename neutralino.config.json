@@ -1,0 +1,42 @@
+{
+  "applicationId": "com.jsonspotlight.editor",
+  "version": "1.0.0",
+  "defaultMode": "window",
+  "port": 0,
+  "documentRoot": "/dist/",
+  "url": "/",
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "tokenSecurity": "one-time",
+  "logging": {
+    "enabled": true,
+    "writeToLogFile": true
+  },
+  "nativeAllowList": [
+    "app.*",
+    "os.*",
+    "debug.log"
+  ],
+  "modes": {
+    "window": {
+      "title": "JSON 聚光灯编辑器",
+      "width": 1200,
+      "height": 800,
+      "center": true,
+      "resizable": true
+    }
+  },
+  "cli": {
+    "binaryName": "json-spotlight-editor",
+    "resourcesPath": "/dist/",
+    "frontendLibrary": {
+      "patchFile": "/dist/index.html",
+      "devUrl": "http://localhost:5173",
+      "projectPath": "/",
+      "initCommand": "pnpm install",
+      "devCommand": "pnpm run dev",
+      "buildCommand": "pnpm run build"
+    },
+    "binaryVersion": "6.8.0"
+  }
+}

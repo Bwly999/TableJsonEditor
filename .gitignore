@@ -1,0 +1,11 @@
+node_modules/
+dist/
+bin/
+.pnpm-store/
+
+*.log
+.neutralino/
+
+# OS
+Thumbs.db
+.DS_Store
