@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Upload, Download, RotateCcw, Layers, Pencil, FileJson, SquareCheck, Square, ChevronRight, TableProperties, Sparkles, Filter, FolderOpen, Columns, Moon, Sun, Check, Command, Grid2X2, Undo, Redo, RotateCw, Type, HelpCircle, ScanEye, Clipboard, AlertCircle, CheckCircle2, Info, Zap } from 'lucide-react';
+import { Upload, Download, RotateCcw, Layers, Pencil, FileJson, SquareCheck, Square, ChevronRight, TableProperties, Sparkles, Filter, FolderOpen, Columns, Moon, Sun, Check, Command, Undo, Redo, RotateCw, Type, HelpCircle, ScanEye, Clipboard, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { flattenJSON, unflattenJSON, smartParseValue } from './utils/jsonHelper';
 import { FlatRow, ColumnMeta, FilterState, Primitive } from './types';
 import FilterDropdown from './components/FilterDropdown';
@@ -27,30 +27,57 @@ interface Notification {
     message: string;
 }
 
-// Custom Swift-style Logo Component
+// Spotlight Prism Logo — diamond formed by JSON brackets
 const SwiftLogo = () => (
   <div className="relative w-10 h-10 group shrink-0">
-    {/* Glowing Background */}
-    <div className="absolute inset-0 bg-gradient-to-br from-[#00f2ff] via-[#0066ff] to-[#ff9500] rounded-xl blur-[2px] opacity-80 group-hover:opacity-100 transition-opacity duration-300"></div>
-    
-    {/* Icon Container */}
-    <div className="relative w-full h-full bg-[#0a0a0c] rounded-xl flex items-center justify-center border border-white/20 shadow-inner overflow-hidden">
-      <svg viewBox="0 0 40 40" className="w-7 h-7" fill="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Cube Part (JSON) */}
-        <path d="M12 14L20 10L28 14M12 14V22L20 26M12 14L20 18M28 14V22L20 26M28 14L20 18M20 26V18" stroke="#00f2ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        
-        {/* Table/Grid Part */}
-        <rect x="22" y="18" width="10" height="10" rx="1" stroke="#ff9500" strokeWidth="1.2" opacity="0.8" />
-        <line x1="22" y1="21.5" x2="32" y2="21.5" stroke="#ff9500" strokeWidth="0.8" opacity="0.6" />
-        <line x1="22" y1="24.5" x2="32" y2="24.5" stroke="#ff9500" strokeWidth="0.8" opacity="0.6" />
-        <line x1="25.5" y1="18" x2="25.5" y2="28" stroke="#ff9500" strokeWidth="0.8" opacity="0.6" />
-        <line x1="28.5" y1="18" x2="28.5" y2="28" stroke="#ff9500" strokeWidth="0.8" opacity="0.6" />
+    {/* Gradient glow halo */}
+    <div className="absolute inset-0 bg-gradient-to-br from-[#00f2ff] via-[#0066ff] to-[#ff9500] rounded-xl blur-[2px] opacity-70 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-        {/* Transition Arrow/Lightning */}
-        <path d="M18 21L21 21L20 24L24 20L21 20L22 17L18 21Z" fill="white" className="animate-pulse" />
+    {/* Icon container */}
+    <div className="relative w-full h-full bg-[#0a0a0c] rounded-xl flex items-center justify-center border border-white/10 overflow-hidden">
+      <svg viewBox="0 0 40 40" className="w-7 h-7 group-hover:scale-105 transition-transform duration-300" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="prism-grad" x1="6" y1="20" x2="34" y2="20" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#00f2ff" />
+            <stop offset="50%" stopColor="#0066ff" />
+            <stop offset="100%" stopColor="#ff9500" />
+          </linearGradient>
+        </defs>
+
+        {/* Left prism half — cyan tint */}
+        <path d="M20 6 L6 20 L20 34 Z" fill="#00f2ff" opacity="0.2" />
+
+        {/* Right prism half — orange tint */}
+        <path d="M20 6 L34 20 L20 34 Z" fill="#ff9500" opacity="0.2" />
+
+        {/* Prism/Diamond outline */}
+        <path d="M20 6 L34 20 L20 34 L6 20 Z"
+              stroke="url(#prism-grad)"
+              strokeWidth="1.8"
+              strokeLinejoin="round" />
+
+        {/* Center spotlight beam */}
+        <line x1="20" y1="6" x2="20" y2="34" stroke="white" strokeWidth="1" opacity="0.25" />
+
+        {/* { bracket nib */}
+        <path d="M13 14 L17 20 L13 26"
+              stroke="#00f2ff"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round" />
+
+        {/* } bracket nib */}
+        <path d="M27 14 L23 20 L27 26"
+              stroke="#ff9500"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round" />
+
+        {/* Spotlight focus point */}
+        <circle cx="20" cy="20" r="1.5" fill="white" opacity="0.85" />
       </svg>
-      
-      {/* Dynamic light sweep */}
+
+      {/* Light sweep on hover */}
       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out"></div>
     </div>
   </div>
@@ -462,11 +489,27 @@ function App() {
              <div className="relative group">
                 {/* Visual anchor referencing the logo design */}
                 <div className="absolute -inset-8 bg-gradient-to-r from-[#00f2ff]/30 via-[#0066ff]/20 to-[#ff9500]/30 rounded-full blur-2xl opacity-50 group-hover:opacity-75 transition duration-1000"></div>
-                <div className="relative w-28 h-28 bg-white dark:bg-zinc-900 rounded-3xl flex items-center justify-center shadow-2xl border border-zinc-100 dark:border-zinc-800 ring-1 ring-black/5">
-                   <div className="flex flex-col items-center">
-                     <Grid2X2 size={48} className="text-[#0066ff] dark:text-[#00f2ff]" strokeWidth={1} />
-                     <Zap size={20} className="text-[#ff9500] -mt-4 animate-bounce" fill="currentColor" />
-                   </div>
+                <div className="relative w-28 h-28 bg-white dark:bg-zinc-900 rounded-3xl flex items-center justify-center shadow-2xl border border-zinc-100 dark:border-zinc-800 ring-1 ring-black/5 group-hover:scale-[1.03] transition-transform duration-500">
+                   <svg viewBox="0 0 40 40" className="w-16 h-16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                     <defs>
+                       <linearGradient id="landing-prism-grad" x1="6" y1="20" x2="34" y2="20" gradientUnits="userSpaceOnUse">
+                         <stop offset="0%" stopColor="#00f2ff" />
+                         <stop offset="50%" stopColor="#0066ff" />
+                         <stop offset="100%" stopColor="#ff9500" />
+                       </linearGradient>
+                     </defs>
+                     <path d="M20 6 L6 20 L20 34 Z" fill="#00f2ff" opacity="0.2" />
+                     <path d="M20 6 L34 20 L20 34 Z" fill="#ff9500" opacity="0.2" />
+                     <path d="M20 6 L34 20 L20 34 L6 20 Z" stroke="url(#landing-prism-grad)" strokeWidth="1.2" strokeLinejoin="round" />
+                     <line x1="20" y1="6" x2="20" y2="34" stroke="white" strokeWidth="0.8" opacity="0.2" />
+                     <path d="M13 14 L17 20 L13 26" stroke="#00f2ff" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                     <path d="M27 14 L23 20 L27 26" stroke="#ff9500" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                     <rect x="17" y="17" width="3" height="3" rx="0.5" fill="#00f2ff" opacity="0.5" />
+                     <rect x="21" y="17" width="3" height="3" rx="0.5" fill="#0066ff" opacity="0.4" />
+                     <rect x="17" y="21" width="3" height="3" rx="0.5" fill="#0066ff" opacity="0.4" />
+                     <rect x="21" y="21" width="3" height="3" rx="0.5" fill="#ff9500" opacity="0.5" />
+                     <circle cx="20" cy="20" r="1.5" fill="white" opacity="0.85" />
+                   </svg>
                 </div>
              </div>
              <h2 className="mt-8 text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">未加载数据集</h2>
