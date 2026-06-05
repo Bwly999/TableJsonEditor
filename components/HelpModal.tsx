@@ -62,7 +62,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
                          <FeatureItem 
                             icon={ShieldCheck} 
                             title="数据一致性保证" 
-                            desc="导出 JSON 时，系统会基于完整修改历史重构对象，无论当前处于何种筛选状态，您的历史编辑都不会丢失。" 
+                            desc="导出 JSON 与 Excel 时，系统都会基于完整修改历史输出全部已编辑记录。筛选与选中仅影响界面查看，不会导致导出内容丢失。" 
                         />
                     </div>
                 </section>

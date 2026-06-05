@@ -649,7 +649,7 @@ function App() {
       </div>
 
       <BulkEditModal isOpen={!!bulkEditCol} onClose={() => setBulkEditCol(null)} columnName={bulkEditCol || ''} affectedRowCount={selectedRowIds.size > 0 ? selectedRowIds.size : filteredRows.length} onSave={handleBulkEdit} />
-      <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} fileName={fileName} originalJson={originalJson} fullFlatRows={flatRows} filteredFlatRows={filteredRows} selectedFlatRows={flatRows.filter(r => selectedRowIds.has(r._id))} columns={columns} hiddenColumns={hiddenColumns} onNotify={notify} />
+      <ExportModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} fileName={fileName} originalJson={originalJson} fullFlatRows={flatRows} columns={columns} hiddenColumns={hiddenColumns} onNotify={notify} />
       <PasteModal isOpen={isPasteModalOpen} onClose={() => setIsPasteModalOpen(false)} onImport={loadJsonData} />
       <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
     </div>

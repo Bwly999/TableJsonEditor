@@ -1,9 +1,9 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import { Download, X, FileJson, FileSpreadsheet, Check, Columns, ArrowRight, TableProperties, Layers } from 'lucide-react';
+import { Download, X, FileJson, FileSpreadsheet, Check, ArrowRight } from 'lucide-react';
 import { ColumnMeta, FlatRow } from '../types';
-import { unflattenJSON } from '../utils/jsonHelper';
 import { exportToExcel } from '../utils/excelHelper';
+import { buildJsonExportData, getExcelExportRows } from '../utils/exportHelper';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -11,8 +11,6 @@ interface ExportModalProps {
   fileName: string;
   originalJson: any;
   fullFlatRows: FlatRow[];      // Always the complete dataset with edits
-  filteredFlatRows: FlatRow[];  // Current view rows
-  selectedFlatRows: FlatRow[];  // Only selected rows
   columns: ColumnMeta[];
   hiddenColumns: Set<string>;
   onNotify: (message: string, type: 'success' | 'error' | 'info') => void;
@@ -24,14 +22,11 @@ const ExportModal: React.FC<ExportModalProps> = ({
   fileName,
   originalJson,
   fullFlatRows,
-  filteredFlatRows,
-  selectedFlatRows,
   columns,
   hiddenColumns,
   onNotify,
 }) => {
   const [format, setFormat] = useState<'json' | 'excel'>('json');
-  const [scope, setScope] = useState<'all' | 'filtered' | 'selected'>('all');
   const [mergeCells, setMergeCells] = useState(false);
   const [selectedColumns, setSelectedColumns] = useState<Set<string>>(new Set());
 
@@ -39,27 +34,18 @@ const ExportModal: React.FC<ExportModalProps> = ({
     if (isOpen) {
       const visible = new Set(columns.filter(c => !hiddenColumns.has(c.key)).map(c => c.key));
       setSelectedColumns(visible);
-      // Auto-set scope if something is selected
-      if (selectedFlatRows.length > 0) setScope('selected');
-      else if (filteredFlatRows.length !== fullFlatRows.length) setScope('filtered');
-      else setScope('all');
     }
-  }, [isOpen, columns, hiddenColumns, selectedFlatRows.length, filteredFlatRows.length, fullFlatRows.length]);
+  }, [isOpen, columns, hiddenColumns]);
 
   if (!isOpen) return null;
 
   const handleExport = async () => {
     const exportName = fileName.replace(/\.json$/i, '') || 'data';
-    const activeRows = scope === 'selected' ? selectedFlatRows : scope === 'filtered' ? filteredFlatRows : fullFlatRows;
+    const exportRows = getExcelExportRows(fullFlatRows);
 
     try {
       if (format === 'json') {
-        // IMPORTANT: For JSON, if scope is 'all', we output the full reconstructed JSON.
-        // If it's a sub-scope, we still need unflattenJSON to handle it, but it will
-        // result in a JSON where only those rows are updated compared to original.
-        // Usually, a user wants to export their WHOLE progress when exporting JSON.
-        const targetRows = scope === 'all' ? fullFlatRows : activeRows;
-        const json = unflattenJSON(originalJson, targetRows);
+        const json = buildJsonExportData(originalJson, fullFlatRows);
         const jsonStr = JSON.stringify(json, null, 2);
         
         // Use modern API if available
@@ -86,7 +72,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
       } else {
         await exportToExcel({
             fileName: exportName,
-            rows: activeRows,
+            rows: exportRows,
             columns: columns,
             selectedColumns: selectedColumns,
             mergeCells: mergeCells
@@ -111,7 +97,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
              </div>
              <div>
                 <h3 className="text-lg font-bold text-zinc-900 dark:text-white">导出配置</h3>
-                <p className="text-xs text-zinc-500">选择您需要的格式与范围</p>
+                <p className="text-xs text-zinc-500">导出完整编辑结果，可按需选择格式与列</p>
              </div>
           </div>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-all">
@@ -129,24 +115,17 @@ const ExportModal: React.FC<ExportModalProps> = ({
             </button>
           </div>
 
-          <div className="space-y-3">
-             <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">导出范围</label>
-             <div className="grid grid-cols-3 gap-2">
-                <button onClick={() => setScope('all')} className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-bold transition-all ${scope === 'all' ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 border-zinc-900 dark:border-white shadow-md' : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300'}`}>
-                   全部 ({fullFlatRows.length})
-                </button>
-                <button onClick={() => setScope('filtered')} className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-bold transition-all ${scope === 'filtered' ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 border-zinc-900 dark:border-white shadow-md' : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300'}`}>
-                   当前视图 ({filteredFlatRows.length})
-                </button>
-                <button onClick={() => setScope('selected')} disabled={selectedFlatRows.length === 0} className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg border text-xs font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed ${scope === 'selected' ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 border-zinc-900 dark:border-white shadow-md' : 'bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300'}`}>
-                   选中项 ({selectedFlatRows.length})
-                </button>
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/60 p-4 space-y-1.5">
+             <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">导出范围</span>
+                <span className="text-xs font-bold text-zinc-900 dark:text-white">固定为完整数据</span>
              </div>
-             {format === 'json' && scope !== 'all' && (
-                <p className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-900/30">
-                   提示: 导出部分范围的 JSON 会基于原始文件进行覆盖更新。为确保完整修改，建议选择“全部”。
-                </p>
-             )}
+             <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                无论当前是否筛选、选中或多次导出，JSON 与 Excel 都会包含全部已编辑记录。
+             </p>
+             <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                本次将导出 <strong className="text-zinc-900 dark:text-white">{fullFlatRows.length}</strong> 条记录。
+             </p>
           </div>
 
           {format === 'excel' && (
@@ -168,6 +147,9 @@ const ExportModal: React.FC<ExportModalProps> = ({
                         {selectedColumns.size === columns.length ? '取消全选' : '全选'}
                     </button>
                  </div>
+                 <p className="px-1 text-[10px] text-zinc-500">
+                    所有记录都会导出，这里仅控制 Excel 中展示哪些列。
+                 </p>
                  <div className="max-h-24 overflow-y-auto custom-scrollbar border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-950 p-3 grid grid-cols-2 gap-2">
                      {columns.map(col => (
                          <div key={col.key} className="flex items-center gap-2 p-1 rounded hover:bg-zinc-50 dark:hover:bg-zinc-800 cursor-pointer select-none" onClick={() => {
@@ -190,7 +172,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
         <div className="flex justify-end gap-3 p-6 border-t border-zinc-50 dark:border-zinc-800/50 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-b-2xl">
             <button onClick={onClose} className="px-5 py-2.5 text-xs font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all">取消</button>
             <button onClick={handleExport} className={`px-6 py-2.5 text-xs font-black rounded-xl shadow-xl transform active:scale-95 transition-all flex items-center gap-2 ${format === 'json' ? 'bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 shadow-zinc-900/20' : 'bg-indigo-600 text-white shadow-indigo-500/30'}`}>
-                <span>执行导出 ({scope === 'all' ? '完整数据' : '选定内容'})</span>
+                <span>执行导出 (完整数据)</span>
                 <ArrowRight size={14} />
             </button>
         </div>
